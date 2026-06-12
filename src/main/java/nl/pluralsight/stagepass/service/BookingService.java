@@ -38,16 +38,45 @@ public class BookingService {
 
     @Transactional
     public Booking createBooking(Booking booking) {
+
+        // Retrieve the concert
         Concert concert = concertRepository.findById(booking.getConcert().getId())
                 .orElseThrow(() -> new RuntimeException("Concert not found"));
 
-        // Compute total price
-        booking.setTotalPrice(BigDecimal.ZERO);
+        // Number of tickets requested
+        int ticketsRequested = booking.getNumberOfTickets();
 
-        // Set booking date and concert reference
-        booking.setBookingDate(LocalDate.now());
+        // Validate ticket quantity
+        if (ticketsRequested <= 0) {
+            throw new IllegalArgumentException("At least one ticket must be purchased.");
+        }
+
+        // Check seat availability
+        if (concert.getAvailableSeats() < ticketsRequested) {
+            throw new InsufficientSeatsException(
+                    "Only " + concert.getAvailableSeats() + " seats are available."
+            );
+        }
+
+        // Decrease available seats
+        concert.setAvailableSeats(
+                concert.getAvailableSeats() - ticketsRequested
+        );
+
+        // Save the updated concert
+        concertRepository.save(concert);
+
+        // Set booking details
         booking.setConcert(concert);
+        booking.setBookingDate(LocalDate.now());
 
+        // Calculate total price
+        BigDecimal totalPrice = concert.getTicketPrice()
+                .multiply(BigDecimal.valueOf(ticketsRequested));
+
+        booking.setTotalPrice(totalPrice);
+
+        // Save and return the booking
         return bookingRepository.save(booking);
     }
 
